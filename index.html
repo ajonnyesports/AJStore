@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>A STORE</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.css" />
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+
+    <style>
+        :root {
+            --brand-color: #10b981; /* Emerald Green */
+            --brand-dark: #059669;
+            --bg-main: #f8fafc;
+        }
+
+        body {
+            font-family: 'Inter', 'Google Sans', sans-serif;
+            background-color: var(--bg-main);
+            color: #0f172a;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            user-select: none;
+        }
+
+        /* --- SCREEN SYSTEM --- */
+        .screen-layer {
+            position: fixed; inset: 0; background: var(--bg-main); z-index: 10;
+            transition: all 0.3s ease-in-out;
+            overflow-y: auto; display: flex; flex-direction: column;
+        }
+        .screen-off-right { transform: translateX(100%); opacity: 0; pointer-events: none; }
+        .screen-active { transform: translateX(0); opacity: 1; z-index: 50; }
+
+        /* --- CUSTOM UI COMPONENTS --- */
+        .search-container {
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+            transition: all 0.3s ease;
+            border: 1px solid #f1f5f9;
+        }
+        .search-container:focus-within {
+            box-shadow: 0 8px 30px rgba(16, 185, 129, 0.15);
+            border-color: var(--brand-color);
+            transform: translateY(-2px);
+        }
+
+        .category-pill {
+            padding: 8px 20px; border-radius: 12px;
+            font-size: 13px; font-weight: 600; color: #64748b;
+            background: #ffffff; border: 1px solid #e2e8f0;
+            white-space: nowrap; transition: all 0.2s ease;
+        }
+        .category-pill.active { 
+            background: var(--brand-color); color: #ffffff; border-color: var(--brand-color);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        /* Utilities */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; scroll-behavior: smooth; }
+
+        .glass-nav { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.05); }
+        .glass-header { background: rgba(248, 250, 252, 0.95); backdrop-filter: blur(12px); }
+
+        .app-card-hover:active { transform: scale(0.96); opacity: 0.8; }
+
+        /* Bottom Sheet */
+        .bottom-sheet {
+            position: fixed; bottom: 0; left: 0; right: 0; background: white;
+            border-radius: 30px 30px 0 0; z-index: 200; transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1); box-shadow: 0 -20px 40px rgba(0,0,0,0.1);
+        }
+        .bottom-sheet.active { transform: translateY(0); }
+
+        .swiper-pagination-bullet-active { background: var(--brand-color) !important; width: 24px; border-radius: 12px; transition: 0.3s; }
+        .shadow-premium { box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+        
+        /* Premium Animations */
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.9; transform: scale(0.95); } }
+        .animate-pulse-slow { animation: pulse-slow 3s infinite ease-in-out; }
+        
+        @keyframes premium-breathe {
+            0%, 100% { transform: scale(1) translateY(0); filter: drop-shadow(0 10px 15px rgba(16, 185, 129, 0.15)); }
+            50% { transform: scale(1.03) translateY(-4px); filter: drop-shadow(0 20px 30px rgba(16, 185, 129, 0.35)); }
+        }
+        .animate-premium-breathe { animation: premium-breathe 4s ease-in-out infinite; }
+
+        .splash-fade-out { opacity: 0 !important; pointer-events: none; transform: scale(1.1); transition: all 0.8s ease; }
+
+        /* Smooth UI Transition for Publish */
+        .slide-up-modal { transform: translateY(100%); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1); }
+        .slide-up-active { transform: translateY(0); }
+    </style>
+</head>
+<body>
+
+    <!-- SPLASH SCREEN -->
+    <section id="splash-screen" class="fixed inset-0 z-[10000] bg-[#0f172a] flex flex-col items-center justify-between py-20 transition-all duration-700">
+        <div class="flex flex-col items-center flex-1 justify-center">
+            <!-- Normal image with premium breathing animation -->
+            <img src="https://i.ibb.co/0pW3Lb82/Picsart-26-06-06-15-01-49-106.webp" alt="AJ STORE Logo" class="w-40 h-40 mb-6 object-contain animate-premium-breathe">
+            <h1 class="text-4xl font-black tracking-tighter text-white">AJ<span class="text-emerald-400"> Store</span></h1>
+            <p class="text-emerald-500/80 font-bold tracking-[0.3em] text-[10px] mt-2 uppercase animate-pulse">Ultimate Edition</p>
+        </div>
+        <div class="w-full px-16 flex flex-col items-center mb-10">
+            <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-4 border border-white/5">
+                <div id="splash-loader" class="h-full bg-emerald-400 w-0 transition-all duration-[2.5s] ease-in-out"></div>
+            </div>
+            <p class="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Connecting to servers...</p>
+        </div>
+    </section>
+
+    <!-- ADMIN ANNOUNCEMENT POP-UP -->
+    <div id="admin-pop-up" class="fixed inset-0 z-[5000] flex items-center justify-center bg-black/80 backdrop-blur-sm hidden opacity-0 transition-all duration-500">
+        <div class="relative w-[85%] max-w-[340px] bg-white rounded-[24px] overflow-hidden shadow-2xl transform scale-95 transition-all duration-500" id="pop-up-content">
+            <button onclick="closePopUp()" class="absolute top-3 right-3 z-[5010] bg-black/10 text-gray-800 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md hover:bg-red-500 hover:text-white transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            <div id="pop-img-container" class="w-full h-48 hidden"><img id="pop-image" src="" class="w-full h-full object-cover"></div>
+            <div class="p-6 text-center">
+                <h2 class="text-2xl font-black text-gray-900 leading-tight">Hello, <span id="pop-user-name" class="text-emerald-500">User</span>!</h2>
+                <p id="pop-desc" class="text-gray-500 mt-3 text-sm font-medium leading-relaxed"></p>
+                <button onclick="closePopUp()" class="mt-6 w-full py-3.5 bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/30 active:scale-95 transition-all text-sm">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIN SCREEN -->
+    <section id="screen-login" class="screen-layer p-8 flex flex-col justify-center bg-white">
+        <div class="mb-10 text-center">
+            <!-- Normal image with premium breathing animation -->
+            <img src="https://i.ibb.co/0pW3Lb82/Picsart-26-06-06-15-01-49-106.webp" alt="AJ STORE Logo" class="w-28 h-28 mx-auto mb-6 object-contain animate-premium-breathe">
+            <h1 class="text-3xl font-black text-gray-900 mb-2">Welcome Back</h1>
+            <p class="text-gray-500 font-medium">Sign in toAJ STORE Pro</p>
+        </div>
+        <div class="space-y-4">
+            <input type="email" id="login-email" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:border-emerald-500 focus:bg-white outline-none font-medium transition-all" placeholder="Email Address">
+            <input type="password" id="login-pass" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:border-emerald-500 focus:bg-white outline-none font-medium transition-all" placeholder="Password">
+            <div class="pt-6 space-y-4">
+                <button onclick="handleLogin()" class="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-emerald-500/30 active:scale-95 transition-transform">Sign In</button>
+                <p class="text-center text-gray-500 font-medium">New here? <button onclick="navigateTo('signup')" class="text-emerald-600 font-bold ml-1">Create an account</button></p>
+            </div>
+        </div>
+    </section>
+
+    <!-- SIGN UP SCREEN -->
+    <section id="screen-signup" class="screen-layer screen-off-right p-8 flex flex-col justify-center bg-white">
+        <div class="mb-8 text-center">
+            <!-- Normal image with premium breathing animation -->
+            <img src="https://i.ibb.co/0pW3Lb82/Picsart-26-06-06-15-01-49-106.webp" alt=AJ STORE Logo" class="w-24 h-24 mx-auto mb-5 object-contain animate-premium-breathe">
+            <h1 class="text-3xl font-black text-gray-900 mb-2">Join AJ Store</h1>
+            <p class="text-gray-500 font-medium">Create your ultimate account</p>
+        </div>
+        <div class="space-y-4">
+            <input type="text" id="signup-name" placeholder="Full Name" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:border-emerald-500 focus:bg-white outline-none font-medium transition-all">
+            <input type="email" id="signup-email" placeholder="Email Address" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:border-emerald-500 focus:bg-white outline-none font-medium transition-all">
+            <input type="password" id="signup-pass" placeholder="Password" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:border-emerald-500 focus:bg-white outline-none font-medium transition-all">
+            <input type="password" id="signup-confirm" placeholder="Confirm Password" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:border-emerald-500 focus:bg-white outline-none font-medium transition-all">
+            <div class="pt-6 space-y-4">
+                <button onclick="handleSignup()" class="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform">Sign Up Now</button>
+                <button onclick="navigateTo('login')" class="w-full text-gray-500 font-medium">Already have an account?</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- A STORE HOME SCREEN -->
+    <section id="screen-main" class="screen-layer screen-off-right">
+        <header class="glass-header pt-4 pb-2 sticky top-0 z-[100]">
+            <div class="flex justify-between items-center px-6 mb-4">
+                <div class="flex items-center gap-3">
+                    <!-- Clean minimal logo for header with subtle hover effect -->
+                    <img src="https://i.ibb.co/0pW3Lb82/Picsart-26-06-06-15-01-49-106.webp" class="w-10 h-10 object-contain drop-shadow-md hover:scale-105 transition-transform duration-300">
+                    <div>
+                        <h1 class="text-2xl font-black tracking-tight text-gray-900">AJ<span class="text-emerald-500"> Store</span></h1>
+                        <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Discover Apps</p>
+                    </div>
+                </div>
+                <div onclick="openAccountModal()" id="user-avatar" class="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center font-bold text-sm cursor-pointer shadow-lg transform active:scale-90 transition-all border-2 border-white">AJ</div>
+            </div>
+
+            <div class="px-5 mb-2">
+                <div class="search-container flex items-center px-5 py-3.5">
+                    <i class="fa fa-search text-gray-400 mr-3 text-lg"></i>
+                    <input type="text" id="search-input" placeholder="Search for games, apps..." class="bg-transparent w-full outline-none text-[15px] font-medium text-gray-800 placeholder-gray-400">
+                    <i class="fa-solid fa-sliders text-emerald-500 ml-3 text-lg"></i>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 pb-28">
+            <div id="search-results-container" class="hidden px-5 pt-4 space-y-4 min-h-[50vh]"></div>
+
+            <div id="main-content-scroll">
+                <div id="category-bar" class="flex gap-3 px-5 py-2 overflow-x-auto no-scrollbar mt-2 mb-4">
+                    <button onclick="filterApps('All', this)" class="category-pill active">All Apps</button>
+                    <button onclick="filterApps('Game', this)" class="category-pill">🕹️ Games</button>
+                    <button onclick="filterApps('App', this)" class="category-pill">📱 Apps</button>
+                    <button onclick="filterApps('Tool', this)" class="category-pill">🔧 Tools</button>
+                </div>
+
+                <div class="mb-10 mt-6">
+                    <div class="flex justify-between items-center px-5 mb-4">
+                        <h3 class="font-bold text-[20px] text-gray-900 tracking-tight">Featured for you</h3>
+                        <i class="fa-solid fa-arrow-right-long text-gray-400 text-sm"></i>
+                    </div>
+                    <div id="app-horizontal-scroll" class="flex gap-4 px-5 overflow-x-auto no-scrollbar pb-4 snap-x snap-mandatory"></div>
+                </div>
+            </div>
+        </main>
+    </section>
+
+    <!-- TRENDING APPS SCREEN -->
+    <section id="screen-trending" class="screen-layer screen-off-right bg-[#f8fafc]">
+        <header class="glass-header pt-6 pb-4 sticky top-0 z-[100] px-6 border-b border-gray-100/50">
+            <h1 class="text-3xl font-black tracking-tight text-gray-900">Trending <span class="text-emerald-500">Now</span></h1>
+            <p class="text-[12px] font-bold text-gray-400 uppercase tracking-wider mt-1" id="list-title">All Apps</p>
+        </header>
+        <main class="flex-1 pb-28 px-5 pt-6">
+            <div id="app-list-vertical" class="space-y-4"></div>
+        </main>
+    </section>
+
+    <!-- APP DETAIL SCREEN -->
+    <section id="screen-detail" class="screen-layer screen-off-right bg-white">
+        <div class="p-5 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-xl z-50">
+            <div onclick="goBackFromDetail()" class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center cursor-pointer active:scale-90 transition-transform"><i class="fa fa-arrow-left text-gray-700"></i></div>
+            <i class="fa-solid fa-share-nodes text-gray-600 text-xl p-2"></i>
+        </div>
+
+        <div class="px-6 pt-2 pb-28">
+            <div class="flex gap-6 mb-8 items-center">
+                <img id="det-icon" class="w-[100px] h-[100px] rounded-[24px] shadow-premium object-cover border border-gray-100">
+                <div class="flex flex-col justify-center">
+                    <h2 id="det-name" class="text-[22px] font-black text-gray-900 leading-tight"></h2>
+                    <p id="det-dev" class="text-emerald-500 font-bold text-[14px] mt-1"></p>
+                    <div class="flex items-center gap-2 mt-2 text-xs font-medium text-gray-500 bg-gray-50 w-fit px-3 py-1 rounded-full">
+                        <i class="fa-solid fa-shield-check text-emerald-500"></i> Verified
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="flex justify-between items-center bg-gray-50 rounded-2xl p-4 mb-6 text-center">
+                <div class="flex-1 border-r border-gray-200"><div class="font-black text-lg text-gray-900" id="avg-rating-small">4.5</div><div class="text-[11px] text-gray-500 font-medium">Rating</div></div>
+                <div class="flex-1 border-r border-gray-200"><div class="font-black text-lg text-gray-900" id="det-size">--</div><div class="text-[11px] text-gray-500 font-medium">Size</div></div>
+                <div class="flex-1"><div class="font-black text-lg text-gray-900">1M+</div><div class="text-[11px] text-gray-500 font-medium">Downloads</div></div>
+            </div>
+
+            <!-- Install Button -->
+            <div id="install-area" class="mb-8">
+                <button id="main-install-btn" class="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-emerald-500/30 active:scale-95 transition-transform">Download App</button>
+                <div id="download-progress-box" class="hidden bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <div class="flex justify-between text-sm font-bold mb-3"><span class="text-emerald-600 animate-pulse">Installing...</span><span id="prog-perc" class="text-gray-900">0%</span></div>
+                    <div class="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden"><div id="prog-bar" class="h-full bg-emerald-500 w-0 transition-all duration-300 rounded-full"></div></div>
+                </div>
+            </div>
+
+            <div class="mb-8">
+                <h3 class="font-black text-[18px] mb-4 text-gray-900">Preview</h3>
+                <div id="screenshot-box" class="flex gap-4 overflow-x-auto no-scrollbar pb-4"></div>
+            </div>
+
+            <div class="mb-8 border-b border-gray-100 pb-6">
+                <h3 class="font-black text-[18px] mb-2 text-gray-900">About</h3>
+                <p id="det-desc" class="text-[14px] text-gray-600 font-medium leading-relaxed line-clamp-3"></p>
+                <span onclick="toggleDesc()" id="read-more-btn" class="text-emerald-600 text-sm font-bold mt-2 inline-block cursor-pointer">Read more</span>
+            </div>
+
+            <!-- RATINGS & REVIEWS -->
+            <div class="mt-4">
+                <h3 class="font-black text-[18px] mb-6 text-gray-900">User Reviews</h3>
+                <div class="flex gap-6 items-center mb-6 bg-gray-50 p-5 rounded-2xl">
+                    <div class="flex flex-col items-center">
+                        <h1 id="avg-rating-big" class="text-5xl font-black text-gray-900">0.0</h1>
+                        <div class="flex text-amber-400 text-[10px] mt-1"><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i><i class="fa fa-star"></i></div>
+                        <p id="total-ratings-count" class="text-[11px] font-bold text-gray-400 mt-1">0 total</p>
+                    </div>
+                    <div class="flex-1 space-y-2">
+                        <div class="flex items-center gap-2"><span class="text-xs font-bold text-gray-600 w-2">5</span><div class="flex-1 h-1.5 bg-gray-200 rounded-full"><div id="bar-5" class="h-full bg-emerald-500 w-0 transition-all rounded-full"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-xs font-bold text-gray-600 w-2">4</span><div class="flex-1 h-1.5 bg-gray-200 rounded-full"><div id="bar-4" class="h-full bg-emerald-500 w-0 transition-all rounded-full"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-xs font-bold text-gray-600 w-2">3</span><div class="flex-1 h-1.5 bg-gray-200 rounded-full"><div id="bar-3" class="h-full bg-emerald-500 w-0 transition-all rounded-full"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-xs font-bold text-gray-600 w-2">2</span><div class="flex-1 h-1.5 bg-gray-200 rounded-full"><div id="bar-2" class="h-full bg-emerald-500 w-0 transition-all rounded-full"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-xs font-bold text-gray-600 w-2">1</span><div class="flex-1 h-1.5 bg-gray-200 rounded-full"><div id="bar-1" class="h-full bg-emerald-500 w-0 transition-all rounded-full"></div></div></div>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-emerald-100 shadow-lg shadow-emerald-500/5 rounded-2xl p-5 mb-8">
+                    <p class="text-sm font-bold text-gray-800 mb-3">Leave your feedback</p>
+                    <div class="flex gap-3 mb-4" id="user-star-input">
+                        <i class="fa-regular fa-star text-3xl text-gray-300 star-btn cursor-pointer transition-colors" data-val="1"></i>
+                        <i class="fa-regular fa-star text-3xl text-gray-300 star-btn cursor-pointer transition-colors" data-val="2"></i>
+                        <i class="fa-regular fa-star text-3xl text-gray-300 star-btn cursor-pointer transition-colors" data-val="3"></i>
+                        <i class="fa-regular fa-star text-3xl text-gray-300 star-btn cursor-pointer transition-colors" data-val="4"></i>
+                        <i class="fa-regular fa-star text-3xl text-gray-300 star-btn cursor-pointer transition-colors" data-val="5"></i>
+                    </div>
+                    <textarea id="user-review-text" placeholder="Tell us what you think..." class="w-full p-4 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-500 font-medium hidden transition-all"></textarea>
+                    <button id="submit-review-btn" class="mt-3 bg-emerald-500 text-white px-8 py-3 rounded-xl text-sm font-bold hidden shadow-md active:scale-95">Post Review</button>
+                </div>
+
+                <div id="reviews-container" class="space-y-4"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- PROFILE SCREEN -->
+    <section id="screen-profile" class="screen-layer screen-off-right bg-[#f8fafc]">
+        <div class="p-6 bg-emerald-500 rounded-b-[40px] text-white shadow-lg pb-10">
+            <div class="flex items-center gap-4 mb-6">
+                <i class="fa fa-arrow-left text-xl cursor-pointer bg-white/20 p-2 rounded-full backdrop-blur-sm" onclick="switchTab('home')"></i>
+                <h2 class="text-xl font-black">Account Settings</h2>
+            </div>
+            <div class="flex items-center gap-5 mt-4">
+                <div id="profile-avatar" class="w-20 h-20 rounded-[24px] bg-white text-emerald-500 flex items-center justify-center text-3xl font-black shadow-inner"AJ</div>
+                <div>
+                    <h3 id="profile-name" class="text-2xl font-black">User Name</h3>
+                    <p id="profile-email" class="text-sm font-medium text-emerald-100">email@example.com</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-6 space-y-4 -mt-6 pb-28">
+            
+            <div onclick="openPublishModal()" class="relative p-5 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl text-white shadow-lg shadow-emerald-500/30 overflow-hidden cursor-pointer active:scale-95 transition-transform flex items-center justify-between">
+                <div class="relative z-10">
+                    <h3 class="font-black text-lg flex items-center gap-2"><i class="fa-solid fa-rocket"></i> Publish Your App</h3>
+                    <p class="text-[12px] font-medium text-emerald-100 mt-1">₹49 Fast Publish • ₹190/mo Auto Payment</p>
+                </div>
+                <i class="fa-solid fa-chevron-right relative z-10 text-white/70 text-lg"></i>
+                <div class="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
+            </div>
+
+            <div class="p-5 bg-white shadow-sm border border-gray-100 rounded-2xl flex justify-between items-center">
+                <div>
+                    <p class="text-[11px] text-gray-400 mb-1 font-bold uppercase tracking-widest">Device ID</p>
+                    <p id="profile-uid" class="text-sm font-bold text-gray-800 tracking-wider font-mono">0000000000-0000000000</p>
+                </div>
+                <i class="fa-solid fa-fingerprint text-emerald-500 text-2xl opacity-20"></i>
+            </div>
+            
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSdMpcUx3DUdToKUd-TcAhJbYu8DQscfPy5SRQPoTX1POrTqiQ/viewform" target="_blank" class="flex items-center justify-between p-5 bg-white shadow-sm border border-gray-100 rounded-2xl font-bold text-gray-800 active:scale-95 transition-transform">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-code text-emerald-500 text-lg"></i> Developer Access</div>
+                <i class="fa-solid fa-chevron-right text-gray-300"></i>
+            </a>
+
+            <div class="p-5 bg-white shadow-sm border border-emerald-100 rounded-2xl relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-emerald-50 rounded-full z-0"></div>
+                <div class="relative z-10">
+                    <div class="flex justify-between items-center mb-4">
+                        <p class="text-[11px] text-gray-400 font-bold uppercase tracking-widest">Developer</p>
+                        <span class="bg-emerald-100 text-emerald-600 text-[10px] font-black px-2.5 py-1 rounded-md tracking-wide">Developer</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-4 mb-6">
+                        <img src="https://i.ibb.co/ZpcfzDy3/1776807543992.webp" alt="Developer Profile" class="w-16 h-16 rounded-full object-cover border-[3px] border-emerald-400 shadow-md">
+                        <div>
+                            <h4 class="text-[18px] font-black text-gray-900 leading-tight">Abhijit Haldar</h4>
+                            <p class="text-[12px] font-bold text-emerald-500 mt-1 uppercase tracking-wide">IT / ITES Student</p>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-gray-400 font-bold mb-3 uppercase tracking-wider">Connect with me</p>
+                    
+                    <div class="flex justify-between items-center gap-2">
+                        <a href="https://t.me/ajonnyofficial" target="_blank" class="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 text-xl hover:bg-blue-500 hover:text-white transition-all active:scale-90 shadow-sm border border-blue-100"><i class="fa-brands fa-telegram"></i></a>
+                        <a href="https://youtube.com/@ardxrdx.official?si=Rum9j1tnK2hRTxA4" target="_blank" class="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center text-red-500 text-xl hover:bg-red-500 hover:text-white transition-all active:scale-90 shadow-sm border border-red-100"><i class="fa-brands fa-youtube"></i></a>
+                        <a href="https://whatsapp.com/channel/0029Vb74VEU11ulUAjdgJr2l" target="_blank" class="w-11 h-11 rounded-full bg-green-50 flex items-center justify-center text-green-500 text-xl hover:bg-green-500 hover:text-white transition-all active:scale-90 shadow-sm border border-green-100"><i class="fa-brands fa-whatsapp"></i></a>
+                        <a href="https://www.facebook.com/share/1CamyZGvmr/" target="_blank" class="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 text-xl hover:bg-blue-600 hover:text-white transition-all active:scale-90 shadow-sm border border-blue-100"><i class="fa-brands fa-facebook"></i></a>
+                        <a href="https://www.instagram.com/shivajian_abhijit?igsh=c2U4eXp2c3VpaGlq" target="_blank" class="w-11 h-11 rounded-full bg-pink-50 flex items-center justify-center text-pink-500 text-xl hover:bg-gradient-to-tr hover:from-orange-400 hover:via-pink-500 hover:to-purple-500 hover:text-white transition-all active:scale-90 shadow-sm border border-pink-100"><i class="fa-brands fa-instagram"></i></a>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="handleLogout()" class="w-full mt-4 bg-white border border-red-100 text-red-500 py-4 rounded-2xl font-black shadow-sm active:scale-95 transition-transform flex items-center justify-center gap-2">
+                <i class="fa-solid fa-power-off"></i> Sign Out Securely
+            </button>
+        </div>
+    </section>
+
+    <!-- PUBLISH APP FULL-SCREEN MODAL -->
+    <div id="publish-modal" class="fixed inset-0 z-[9999] bg-[#f8fafc] flex flex-col slide-up-modal hidden">
+        <div class="glass-header p-5 flex items-center justify-between sticky top-0 z-50 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <button onclick="closePublishModal()" class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 active:scale-90 transition-transform"><i class="fa fa-xmark text-gray-700 text-lg"></i></button>
+                <h2 class="font-black text-xl text-gray-900">Publish App</h2>
+            </div>
+            <i class="fa-solid fa-cloud-arrow-up text-emerald-500 text-2xl"></i>
+        </div>
+
+        <div class="p-6 overflow-y-auto pb-32 flex-1">
+            <p class="text-sm font-bold text-gray-500 mb-6">List your application directly on A Store and reach thousands of users instantly.</p>
+            
+            <div class="space-y-4 mb-8">
+                <div>
+                    <label class="text-[12px] font-bold text-gray-500 ml-2 mb-1 block uppercase tracking-wider">App Name</label>
+                    <input type="text" id="pub-name" placeholder="e.g. My Awesome Game" class="w-full p-4 bg-white border border-gray-200 rounded-2xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none font-medium transition-all shadow-sm">
+                </div>
+                <div>
+                    <label class="text-[12px] font-bold text-gray-500 ml-2 mb-1 block uppercase tracking-wider">Description</label>
+                    <textarea id="pub-desc" placeholder="Briefly describe your app..." rows="3" class="w-full p-4 bg-white border border-gray-200 rounded-2xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none font-medium transition-all shadow-sm"></textarea>
+                </div>
+                <div>
+                    <label class="text-[12px] font-bold text-gray-500 ml-2 mb-1 block uppercase tracking-wider">APK Link (Drive/MediaFire)</label>
+                    <input type="url" id="pub-apk" placeholder="https://" class="w-full p-4 bg-white border border-gray-200 rounded-2xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none font-medium transition-all shadow-sm">
+                </div>
+            </div>
+
+            <h3 class="font-black text-[18px] text-gray-900 mb-4">Select Plan</h3>
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <div id="plan-109" onclick="selectPublishPlan(109)" class="plan-card border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200 p-4 rounded-2xl border cursor-pointer relative transition-all">
+                    <div class="absolute -top-3 right-3 bg-emerald-500 text-white text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-wider shadow-sm">Popular</div>
+                    <i class="fa-solid fa-bolt text-emerald-500 text-xl mb-2"></i>
+                    <h4 class="font-black text-gray-900">Fast Publish</h4>
+                    <p class="text-[11px] font-medium text-gray-500 mt-1">Single app publish</p>
+                    <p class="font-black text-xl text-emerald-600 mt-2">₹109</p>
+                </div>
+                <div id="plan-190" onclick="selectPublishPlan(190)" class="plan-card border-gray-200 bg-white p-4 rounded-2xl border cursor-pointer relative transition-all">
+                    <i class="fa-solid fa-rotate text-indigo-500 text-xl mb-2"></i>
+                    <h4 class="font-black text-gray-900">monthly</h4>
+                    <p class="text-[11px] font-medium text-gray-500 mt-1">Unlimited monthly</p>
+                    <p class="font-black text-xl text-indigo-600 mt-2">₹299<span class="text-xs text-gray-400">/mo</span></p>
+                </div>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded-2xl p-5 mb-8 shadow-sm">
+                <h3 class="font-black text-[16px] text-gray-900 mb-2 flex items-center gap-2"><i class="fa-solid fa-qrcode text-gray-600"></i> Secure Payment</h3>
+                <p class="text-[12px] font-medium text-gray-500 mb-4 leading-relaxed">Pay using the QR code below or tap the direct UPI link. After payment, enter your 12-digit UTR below.</p>
+                
+                <div class="flex flex-col items-center justify-center mb-5 p-3 bg-gray-50 rounded-xl border border-gray-100 relative">
+                    <div class="absolute top-2 left-2 flex gap-1"><div class="w-2 h-2 rounded-full bg-red-400"></div><div class="w-2 h-2 rounded-full bg-amber-400"></div><div class="w-2 h-2 rounded-full bg-emerald-400"></div></div>
+                    <p class="text-[10px] font-bold text-gray-400 mb-2 mt-4 tracking-widest uppercase">Scan to Pay</p>
+                    <img src="https://i.ibb.co/Kx9JYHJM/Screenshot-20260405-221221.webp" alt="Payment QR Code" class="w-48 h-auto object-contain rounded-lg shadow-md border border-gray-200 mb-2">
+                    <p class="text-[11px] font-black text-emerald-600 mt-1">azoniofficial@ybl</p>
+                </div>
+                
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="h-[1px] flex-1 bg-gray-200"></div><span class="text-xs font-bold text-gray-400 uppercase tracking-widest">OR</span><div class="h-[1px] flex-1 bg-gray-200"></div>
+                </div>
+
+                <a href="upi://pay?pa=azoniofficial@ybl&pn=A%20Store%20Publish&am=49&cu=INR" id="upi-pay-btn" class="w-full block text-center bg-gray-900 text-white py-3.5 rounded-xl font-bold mb-4 active:scale-95 transition-transform shadow-lg">
+                    <i class="fa-brands fa-google-pay mr-1"></i> Pay Now via App
+                </a>
+
+                <div class="relative">
+                    <input type="number" id="pub-utr" placeholder="Enter 12-digit UTR Number" class="w-full p-4 pl-10 bg-white border border-gray-200 rounded-xl focus:border-emerald-500 outline-none font-bold text-gray-800 transition-all text-sm tracking-wider shadow-inner">
+                    <i class="fa-solid fa-money-bill-transfer absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                </div>
+            </div>
+
+            <button onclick="submitPublishRequest()" class="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black text-[16px] shadow-lg shadow-emerald-500/30 active:scale-95 transition-transform flex items-center justify-center gap-2">
+                <i class="fa-brands fa-whatsapp text-xl"></i> Verify & Submit
+            </button>
+        </div>
+    </div>
+
+    <!-- BOTTOM NAVIGATION -->
+    <div id="bottom-nav" class="fixed bottom-4 left-6 right-6 bg-gray-900/95 backdrop-blur-xl rounded-[24px] flex justify-around items-center pt-3 pb-3 z-[100] shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-gray-700">
+        <div onclick="switchTab('home')" class="nav-item flex flex-col items-center text-emerald-400 cursor-pointer transition-colors">
+            <i class="fa-solid fa-house text-[20px] mb-1"></i>
+            <span class="text-[10px] font-bold tracking-wide">Home</span>
+        </div>
+        <div onclick="switchTab('trending')" class="nav-item flex flex-col items-center text-gray-400 cursor-pointer hover:text-white transition-colors">
+            <i class="fa-solid fa-fire text-[20px] mb-1"></i>
+            <span class="text-[10px] font-bold tracking-wide">Trending</span>
+        </div>
+        <div onclick="switchTab('profile')" class="nav-item flex flex-col items-center text-gray-400 cursor-pointer hover:text-white transition-colors">
+            <i class="fa-solid fa-user-astronaut text-[20px] mb-1"></i>
+            <span class="text-[10px] font-bold tracking-wide">Profile</span>
+        </div>
+    </div>
+
+    <!-- ACCOUNT BOTTOM SHEET -->
+    <div id="overlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[190] hidden opacity-0 transition-opacity duration-300" onclick="closeAllModals()"></div>
+    <div id="account-sheet" class="bottom-sheet p-6">
+        <div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+        <div class="flex items-center gap-4 mb-8">
+            <div id="sheet-avatar" class="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xl font-bold shadow-inner">A</div>
+            <div><h4 id="sheet-name" class="font-black text-lg leading-none mb-1 text-gray-900">User Name</h4><p id="sheet-email" class="text-sm font-medium text-gray-500">user@example.com</p></div>
+        </div>
+        <div class="space-y-2">
+            <div class="flex items-center gap-4 p-4 hover:bg-gray-50 rounded-2xl cursor-pointer font-bold text-gray-700 transition-colors">
+                <i class="fa-solid fa-shield-halved text-emerald-500 w-6 text-xl"></i><span>A Protect</span>
+            </div>
+            <div onclick="handleLogout()" class="flex items-center gap-4 p-4 text-red-500 hover:bg-red-50 rounded-2xl cursor-pointer mt-2 font-bold transition-colors">
+                <i class="fa-solid fa-right-from-bracket w-6 text-xl"></i><span>Sign out device</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- IMAGE VIEWER -->
+    <div id="image-viewer" class="fixed inset-0 bg-black/95 backdrop-blur-lg hidden z-[9999]">
+        <div class="flex justify-between items-center text-white p-6 absolute top-0 w-full z-10">
+            <button onclick="closeImageViewer()" class="p-3 bg-white/10 rounded-full w-12 h-12 flex items-center justify-center backdrop-blur-md active:scale-90"><i class="fa fa-xmark text-xl"></i></button>
+            <span id="viewer-counter" class="bg-white/10 px-5 py-2 rounded-full text-sm font-bold backdrop-blur-md"></span>
+        </div>
+        <div class="swiper viewerSwiper h-full"><div class="swiper-wrapper" id="viewer-wrapper"></div></div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script>
+        // --- FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBpyytTtEyc5wBPBXtT2vXscfd22TO5U1Y",
+            authDomain: "aj-e-sports-l.firebaseapp.com",
+            databaseURL: "https://aj-e-sports-l-default-rtdb.firebaseio.com",
+            projectId: "aj-e-sports-l",
+            storageBucket: "aj-e-sports-l.firebasestorage.app",
+            messagingSenderId: "121183911477",
+            appId: "1:121183911477:web:5adfbbc9cbd1706c1cfb7c"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        let MATER_DATA = {};
+        let activeApp = null;
+        let downInterval = null;
+        let viewerSwiper = null;
+        let currentActiveTab = 'home'; 
+
+        // --- SPLASH ANIMATION ---
+        window.onload = () => {
+            const loader = document.getElementById('splash-loader');
+            const splash = document.getElementById('splash-screen');
+            setTimeout(() => { if(loader) loader.style.width = "100%"; }, 50);
+            setTimeout(() => {
+                if(splash) {
+                    splash.classList.add('splash-fade-out');
+                    setTimeout(() => splash.remove(), 800);
+                }
+                showAnnouncement(); 
+            }, 3000);
+        };
+
+        function navigateTo(id) {
+            document.querySelectorAll('.screen-layer').forEach(el => {
+                el.classList.add('screen-off-right');
+                el.classList.remove('screen-active');
+            });
+            const target = document.getElementById('screen-' + id);
+            target.classList.remove('screen-off-right');
+            target.classList.add('screen-active');
+            window.scrollTo(0, 0);
+        }
+
+        // --- AUTH LOGIC ---
+        function handleLogin() {
+            const e = document.getElementById('login-email').value;
+            const p = document.getElementById('login-pass').value;
+            if(!e || !p) return alert("Missing credentials");
+            
+            auth.signInWithEmailAndPassword(e, p).then(() => {
+                switchTab('home');
+                loadData();
+            }).catch(err => {
+                alert(err.message);
+            });
+        }
+
+        function handleSignup() {
+            const name = document.getElementById('signup-name').value.trim();
+            const email = document.getElementById('signup-email').value.trim();
+            const pass = document.getElementById('signup-pass').value;
+            const confirm = document.getElementById('signup-confirm').value;
+
+            if (!name || !email || !pass || !confirm) return alert("All fields required");
+            if (pass !== confirm) return alert("Passwords do not match");
+            if (pass.length < 6) return alert("Password 6+ characters");
+
+            auth.createUserWithEmailAndPassword(email, pass)
+                .then(async (res) => {
+                    await res.user.updateProfile({ displayName: name });
+                    
+                    const finalName = name;
+                    const char = finalName.charAt(0).toUpperCase();
+                    
+                    document.getElementById('user-avatar').innerText = char;
+                    document.getElementById('sheet-avatar').innerText = char;
+                    document.getElementById('sheet-name').innerText = finalName;
+                    document.getElementById('sheet-email').innerText = email;
+                    document.getElementById('pop-user-name').innerText = finalName;
+                    
+                    alert("Account created successfully! 🎉");
+                    
+                    switchTab('home');
+                    loadData();
+                })
+                .catch(err => {
+                    if (err.code === 'auth/email-already-in-use') {
+                        alert("⚠️ This Email is already registered!\n\nWe are redirecting you to the Login screen.");
+                        navigateTo('login');
+                    } else {
+                        alert(err.message);
+                    }
+                });
+        }
+
+        function handleLogout() {
+            if(confirm("Sign out of AJ Store?")) auth.signOut().then(() => location.reload());
+        }
+
+        auth.onAuthStateChanged(user => {
+            if(user) {
+                const finalName = user.displayName || user.email.split('@')[0] || "User";
+                const char = finalName.charAt(0).toUpperCase();
+                
+                document.getElementById('user-avatar').innerText = char;
+                document.getElementById('sheet-avatar').innerText = char;
+                document.getElementById('sheet-name').innerText = finalName;
+                document.getElementById('sheet-email').innerText = user.email;
+                document.getElementById('pop-user-name').innerText = finalName;
+                
+                navigateTo('main');
+                loadData();
+            } else {
+                navigateTo('login');
+            }
+        });
+
+        // --- LOAD DATA ---
+        function loadData() {
+            db.ref("apps").on("value", snap => {
+                MATER_DATA = snap.val() || {};
+                renderHome(MATER_DATA);
+            });
+        }
+
+        // --- RENDER ENGINE ---
+        function renderHome(data) {
+            const hList = document.getElementById('app-horizontal-scroll');
+            const vList = document.getElementById('app-list-vertical');
+            hList.innerHTML = ""; vList.innerHTML = "";
+
+            const keys = Object.keys(data).reverse();
+
+            keys.slice(0, 5).forEach(id => {
+                const app = data[id];
+                hList.innerHTML += `
+                    <div class="w-[125px] flex-shrink-0 flex flex-col gap-2 cursor-pointer app-card-hover snap-start" onclick="openApp('${id}')">
+                        <img src="${app.icon}" class="w-[125px] h-[125px] rounded-[24px] object-cover shadow-sm border border-gray-100">
+                        <div class="px-1 mt-1">
+                            <p class="text-[13px] font-bold text-gray-900 leading-tight truncate block">${app.name}</p>
+                            <p class="text-[11px] font-semibold text-gray-500 mt-0.5 truncate block">${app.category}</p>
+                        </div>
+                    </div>`;
+            });
+
+            keys.forEach(id => {
+                const app = data[id];
+                vList.innerHTML += `
+                    <div class="flex items-center gap-4 p-4 bg-white rounded-[24px] shadow-sm border border-gray-100 app-card-hover cursor-pointer" onclick="openApp('${id}')">
+                        <img src="${app.icon}" class="w-[68px] h-[68px] rounded-[20px] object-cover shadow-sm">
+                        <div class="flex-1 min-w-0">
+                            <h4 class="text-[16px] font-bold text-gray-900 truncate">${app.name}</h4>
+                            <p class="text-[12px] font-semibold text-gray-500 mt-1 truncate">${app.category} • ${app.rating || '4.5'} <i class="fa-solid fa-star text-amber-400"></i></p>
+                        </div>
+                        <button class="bg-gray-100 text-gray-800 px-5 py-2 rounded-full text-[13px] font-bold">Install</button>
+                    </div>`;
+            });
+        }
+
+        // --- SEARCH BAR ---
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase().trim();
+            const mainContent = document.getElementById('main-content-scroll');
+            const searchResults = document.getElementById('search-results-container');
+
+            if (val.length > 0) {
+                mainContent.classList.add('hidden');
+                searchResults.classList.remove('hidden');
+
+                const filteredKeys = Object.keys(MATER_DATA).filter(key => {
+                    const app = MATER_DATA[key];
+                    return app.name.toLowerCase().includes(val) || app.category.toLowerCase().includes(val);
+                });
+
+                if (filteredKeys.length > 0) {
+                    searchResults.innerHTML = filteredKeys.map(id => {
+                        const app = MATER_DATA[id];
+                        return `
+                        <div class="flex items-center gap-4 p-4 bg-white rounded-[24px] shadow-sm border border-emerald-100 app-card-hover cursor-pointer" onclick="openApp('${id}')">
+                            <img src="${app.icon}" class="w-[60px] h-[60px] rounded-[18px] object-cover">
+                            <div class="flex-1 min-w-0">
+                                <h4 class="text-[15px] font-bold text-gray-900 truncate">${app.name}</h4>
+                                <p class="text-[12px] font-medium text-gray-500 mt-1">${app.category}</p>
+                            </div>
+                            <button class="bg-emerald-100 text-emerald-700 px-5 py-2 rounded-full text-[12px] font-bold">View</button>
+                        </div>`;
+                    }).join('');
+                } else {
+                    searchResults.innerHTML = `<div class="text-center mt-10"><i class="fa-solid fa-ghost text-4xl text-gray-300 mb-3"></i><p class="text-gray-500 font-bold">No apps found</p></div>`;
+                }
+            } else {
+                mainContent.classList.remove('hidden');
+                searchResults.classList.add('hidden');
+            }
+        });
+
+        function filterApps(cat, btn) {
+            document.querySelectorAll('.category-pill').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const filtered = Object.keys(MATER_DATA).reduce((acc, key) => {
+                if (cat === 'All' || MATER_DATA[key].category === cat) { acc[key] = MATER_DATA[key]; }
+                return acc;
+            }, {});
+            
+            document.getElementById('list-title').innerText = cat === 'All' ? "All Apps" : `${cat}s`;
+            renderHome(filtered);
+        }
+
+        // --- DETAIL SCREEN & INSTALL ---
+        function openApp(id) {
+            if (currentActiveTab === 'home') {
+                document.getElementById('search-input').value = "";
+                document.getElementById('main-content-scroll').classList.remove('hidden');
+                document.getElementById('search-results-container').classList.add('hidden');
+            }
+
+            const app = MATER_DATA[id];
+            activeApp = { ...app, id: id };
+            
+            document.getElementById('det-icon').src = app.icon;
+            document.getElementById('det-name').innerText = app.name;
+            document.getElementById('det-dev').innerText = app.dev || "A STOREVerified";
+            document.getElementById('det-size').innerText = app.size || "15 MB";
+            
+            const descEl = document.getElementById('det-desc');
+            descEl.innerText = app.desc || "No description provided.";
+            descEl.classList.add('line-clamp-3');
+            document.getElementById('read-more-btn').innerText = "Read more";
+
+            const ssBox = document.getElementById('screenshot-box');
+            ssBox.innerHTML = "";
+            if (app.screenshots && app.screenshots.length > 0) {
+                app.screenshots.forEach((img, index) => {
+                    ssBox.innerHTML += `<img src="${img}" onclick="openImageViewer(${index})" class="min-w-[150px] h-72 object-cover rounded-[20px] cursor-pointer shadow-sm border border-gray-100">`;
+                });
+            }
+            
+            const btn = document.getElementById('main-install-btn');
+            const progressBox = document.getElementById('download-progress-box');
+            
+            if(localStorage.getItem('inst_'+id)) {
+                btn.innerText = "Install";
+                btn.onclick = () => window.open(app.apk, '_blank');
+                progressBox.classList.add('hidden');
+                btn.classList.remove('hidden');
+            } else {
+                btn.innerText = "Download App";
+                btn.onclick = startDownload;
+                progressBox.classList.add('hidden');
+                btn.classList.remove('hidden');
+            }
+
+            checkInstallAndUnlockRating(id);
+            loadReviews(id);
+            navigateTo('detail');
+        }
+
+        function goBackFromDetail() {
+            switchTab(currentActiveTab);
+        }
+
+        function startDownload() {
+            const btn = document.getElementById('main-install-btn');
+            const box = document.getElementById('download-progress-box');
+            const bar = document.getElementById('prog-bar');
+            const perc = document.getElementById('prog-perc');
+
+            btn.classList.add('hidden');
+            box.classList.remove('hidden');
+
+            let p = 0;
+            downInterval = setInterval(() => {
+                p += Math.floor(Math.random() * 15) + 5;
+                if(p >= 100) {
+                    p = 100;
+                    clearInterval(downInterval);
+                    finishDownload();
+                }
+                bar.style.width = p + "%";
+                perc.innerText = p + "%";
+            }, 300);
+        }
+
+        function finishDownload() {
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+            localStorage.setItem('inst_' + activeApp.id, "true");
+            openApp(activeApp.id);
+            setTimeout(() => { window.open(activeApp.apk, '_blank'); }, 1000);
+        }
+
+        // --- RATING LOGIC ---
+        function checkInstallAndUnlockRating(appId) {
+            const isInstalled = localStorage.getItem('inst_' + appId);
+            const ratingBox = document.getElementById('user-star-input');
+            const reviewText = document.getElementById('user-review-text');
+            const submitBtn = document.getElementById('submit-review-btn');
+
+            if (!isInstalled) {
+                ratingBox.style.pointerEvents = "none"; ratingBox.style.opacity = "0.4";
+                reviewText.classList.add('hidden'); submitBtn.classList.add('hidden');
+            } else {
+                ratingBox.style.pointerEvents = "auto"; ratingBox.style.opacity = "1";
+            }
+        }
+
+        let selectedStars = 0;
+        document.querySelectorAll('.star-btn').forEach(star => {
+            star.onclick = function() {
+                selectedStars = parseInt(this.dataset.val);
+                updateInputStars(selectedStars);
+                document.getElementById('user-review-text').classList.remove('hidden');
+                document.getElementById('submit-review-btn').classList.remove('hidden');
+            }
+        });
+
+        function updateInputStars(val) {
+            document.querySelectorAll('.star-btn').forEach((s, i) => {
+                if(i < val) { s.classList.replace('fa-regular', 'fa-solid'); s.classList.replace('text-gray-300', 'text-amber-400'); }
+                else { s.classList.replace('fa-solid', 'fa-regular'); s.classList.replace('text-amber-400', 'text-gray-300'); }
+            });
+        }
+
+        document.getElementById('submit-review-btn').onclick = function() {
+            const user = auth.currentUser;
+            if(!user) return alert("Please login first!");
+
+            const reviewText = document.getElementById('user-review-text').value;
+            const appId = activeApp.id;
+            const finalName = user.displayName || user.email.split('@')[0];
+
+            db.ref(`apps/${appId}/reviews/${user.uid}`).set({
+                userName: finalName, rating: selectedStars, comment: reviewText, timestamp: Date.now()
+            }).then(() => {
+                alert("Review posted!");
+                document.getElementById('user-review-text').value = "";
+                updateInputStars(0);
+            });
+        };
+
+        function loadReviews(appId) {
+            db.ref(`apps/${appId}/reviews`).on('value', snap => {
+                const reviews = snap.val() || {};
+                const container = document.getElementById('reviews-container');
+                container.innerHTML = "";
+                let counts = {1:0, 2:0, 3:0, 4:0, 5:0}; let totalSum = 0; let totalUsers = Object.keys(reviews).length;
+
+                Object.values(reviews).forEach(rev => {
+                    counts[rev.rating]++; totalSum += rev.rating;
+                    container.innerHTML += `
+                        <div class="p-5 border border-gray-100 rounded-2xl bg-white shadow-sm">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-500 text-white flex items-center justify-center text-sm font-bold shadow-md">${rev.userName[0].toUpperCase()}</div>
+                                <div><span class="text-sm font-bold text-gray-900 block">${rev.userName}</span><div class="flex text-[10px] text-amber-400 mt-1">${'<i class="fa fa-star"></i>'.repeat(rev.rating)}</div></div>
+                            </div>
+                            <p class="text-[13px] font-medium text-gray-600 leading-relaxed">${rev.comment}</p>
+                        </div>`;
+                });
+
+                const avg = totalUsers ? (totalSum / totalUsers).toFixed(1) : "0.0";
+                document.getElementById('avg-rating-big').innerText = avg;
+                document.getElementById('avg-rating-small').innerText = avg;
+                document.getElementById('total-ratings-count').innerText = `${totalUsers} total`;
+                
+                for(let i=1; i<=5; i++) {
+                    const perc = totalUsers ? (counts[i] / totalUsers) * 100 : 0;
+                    document.getElementById(`bar-${i}`).style.width = perc + "%";
+                }
+            });
+        }
+
+        // --- NAVIGATION TABS ---
+        function switchTab(tab) {
+            currentActiveTab = tab; 
+            const items = document.querySelectorAll('.nav-item');
+            items.forEach(i => { i.classList.remove('text-emerald-400'); i.classList.add('text-gray-400'); });
+            
+            if(tab === 'home') {
+                navigateTo('main'); 
+                items[0].classList.add('text-emerald-400'); items[0].classList.remove('text-gray-400');
+            } else if (tab === 'trending') {
+                navigateTo('trending'); 
+                items[1].classList.add('text-emerald-400'); items[1].classList.remove('text-gray-400');
+            } else if (tab === 'profile') {
+                loadProfile(); navigateTo('profile'); 
+                items[2].classList.add('text-emerald-400'); items[2].classList.remove('text-gray-400');
+            }
+        }
+
+        // Generate Numeric Format ID (0000000000-0000000000) based on UID
+        function generateNumericDeviceID(uid) {
+            let hash = 0;
+            for (let i = 0; i < uid.length; i++) { hash = uid.charCodeAt(i) + ((hash << 5) - hash); }
+            hash = Math.abs(hash);
+            let part1 = hash.toString().padStart(10, '0').substring(0, 10);
+            let part2 = (hash * 7).toString().padStart(10, '0').substring(0, 10);
+            return `${part1}-${part2}`;
+        }
+
+        function loadProfile() {
+            const user = auth.currentUser; if (!user) return;
+            const finalName = user.displayName || user.email.split('@')[0] || "User";
+            document.getElementById('profile-name').innerText = finalName; 
+            document.getElementById('profile-email').innerText = user.email;
+            
+            // Set Formatted Device ID
+            document.getElementById('profile-uid').innerText = generateNumericDeviceID(user.uid); 
+            document.getElementById('profile-avatar').innerText = finalName.charAt(0).toUpperCase();
+        }
+
+        function openAccountModal() {
+            document.getElementById('overlay').classList.remove('hidden'); setTimeout(() => document.getElementById('overlay').classList.add('opacity-100'), 10);
+            document.getElementById('account-sheet').classList.add('active');
+        }
+
+        function closeAllModals() {
+            document.getElementById('overlay').classList.remove('opacity-100'); setTimeout(() => document.getElementById('overlay').classList.add('hidden'), 300);
+            document.getElementById('account-sheet').classList.remove('active');
+        }
+
+        function openImageViewer(index) {
+            const viewer = document.getElementById('image-viewer'); const wrapper = document.getElementById('viewer-wrapper');
+            wrapper.innerHTML = activeApp.screenshots.map(img => `<div class="swiper-slide"><div class="swiper-zoom-container"><img src="${img}"></div></div>`).join('');
+            viewer.classList.remove('hidden');
+            if (viewerSwiper) viewerSwiper.destroy();
+            viewerSwiper = new Swiper(".viewerSwiper", {
+                initialSlide: index, zoom: { maxRatio: 3 }, spaceBetween: 10,
+                on: { slideChange: function () { document.getElementById('viewer-counter').innerText = `${this.activeIndex + 1} / ${activeApp.screenshots.length}`; } }
+            });
+            document.getElementById('viewer-counter').innerText = `${index + 1} / ${activeApp.screenshots.length}`;
+        }
+
+        function closeImageViewer() { document.getElementById('image-viewer').classList.add('hidden'); }
+
+        function showAnnouncement() {
+            db.ref("announcement").once("value", (snap) => {
+                const data = snap.val();
+                if (data && data.active === true) {
+                    const popUp = document.getElementById('admin-pop-up');
+                    const content = document.getElementById('pop-up-content');
+                    if (data.message) document.getElementById('pop-desc').innerText = data.message;
+                    if (data.image) { document.getElementById('pop-image').src = data.image; document.getElementById('pop-img-container').classList.remove('hidden'); }
+                    popUp.classList.remove('hidden');
+                    setTimeout(() => { popUp.classList.add('opacity-100'); content.classList.remove('scale-95'); content.classList.add('scale-100'); }, 100);
+                }
+            });
+        }
+        function closePopUp() {
+            const popUp = document.getElementById('admin-pop-up'); popUp.classList.replace('opacity-100', 'opacity-0');
+            setTimeout(() => popUp.classList.add('hidden'), 500);
+        }
+        
+        function toggleDesc() {
+            const desc = document.getElementById('det-desc'); const btn = document.getElementById('read-more-btn');
+            if (desc.classList.contains('line-clamp-3')) { desc.classList.remove('line-clamp-3'); btn.innerText = "Show less"; }
+            else { desc.classList.add('line-clamp-3'); btn.innerText = "Read more"; }
+        }
+
+        // --- PUBLISH APP MODULE SCRIPTS ---
+        let selectedPlanPrice = 49;
+
+        function openPublishModal() {
+            const modal = document.getElementById('publish-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.add('slide-up-active'), 10);
+            selectPublishPlan(49); // Default to Fast Publish
+        }
+
+        function closePublishModal() {
+            const modal = document.getElementById('publish-modal');
+            modal.classList.remove('slide-up-active');
+            setTimeout(() => modal.classList.add('hidden'), 400);
+        }
+
+        function selectPublishPlan(price) {
+            selectedPlanPrice = price;
+            
+            // Reset styles
+            document.querySelectorAll('.plan-card').forEach(card => {
+                card.classList.remove('border-emerald-500', 'bg-emerald-50', 'ring-2', 'ring-emerald-200');
+                card.classList.add('border-gray-200', 'bg-white');
+            });
+
+            // Activate selected card
+            const activeCard = document.getElementById(`plan-${price}`);
+            activeCard.classList.remove('border-gray-200', 'bg-white');
+            activeCard.classList.add('border-emerald-500', 'bg-emerald-50', 'ring-2', 'ring-emerald-200');
+
+            // Update UPI Button Intent Link dynamically
+            const upiLink = `upi://pay?pa=azoniofficial@ybl&pn=A%20Store%20Publish&am=${price}&cu=INR`;
+            document.getElementById('upi-pay-btn').href = upiLink;
+        }
+
+        function submitPublishRequest() {
+            const appName = document.getElementById('pub-name').value.trim();
+            const appDesc = document.getElementById('pub-desc').value.trim();
+            const apkLink = document.getElementById('pub-apk').value.trim();
+            const utr = document.getElementById('pub-utr').value.trim();
+            const user = auth.currentUser;
+
+            if (!appName || !appDesc || !apkLink) return alert("Please fill all App details.");
+            if (!utr || utr.length !== 12) return alert("Please enter a valid 12-digit UTR payment number.");
+
+            const devName = user ? (user.displayName || user.email) : "Unknown Developer";
+            const planName = selectedPlanPrice === 49 ? "Fast Publish (₹49)" : "Auto Monthly (₹190/mo)";
+
+            const textMessage = `*🚀 A STORE APP PUBLISH REQUEST*
+            
+*Developer:* ${devName}
+*App Name:* ${appName}
+*Description:* ${appDesc}
+*APK Link:* ${apkLink}
+
+*💸 Payment Details:*
+*Plan:* ${planName}
+*UTR Number:* ${utr}
+
+_Please verify my payment and publish the app._`;
+
+            const waUrl = `https://wa.me/918167427200?text=${encodeURIComponent(textMessage)}`;
+            window.open(waUrl, '_blank');
+        }
+    </script>
+</body>
+</html>
